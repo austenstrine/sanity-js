@@ -1,4 +1,5 @@
-//The following 5 definitions just make it so I don't have to worry about the capital E in forEach. (Might be more definitions are to come in this regard)
+//The following 5 definitions just make it so I don't have to worry about the capital E in forEach. 
+//(Might be more definitions are to come in this regard)
 Object.defineProperty(Array.prototype, 'foreach', {
 	value: function(...params) { return this.forEach(...params); }
 });
@@ -87,6 +88,526 @@ function pTimeout(delay) {
 		resolve();
 	}, delay);
 }
+
+//jquery-like helpers for css manipulation
+function kebabToCamelCase(kebabCaseString) {
+	return kebabCaseString.replace(/-([a-z])/g, function(match, letter) {
+		return letter.toUpperCase();
+	});
+}
+Object.defineProperty(Element.prototype, 'styling', {
+	value: function(name, value) {
+		if(typeof name === 'object') {
+			const cssSetObject = name;
+			for(const propertyName in cssSetObject) {
+				this.style[kebabToCamelCase(propertyName)] = cssSetObject[propertyName];
+			}
+			return this;
+		}
+		else if(undefined === value) {
+			return this.style[kebabToCamelCase(name)];
+		}
+		else {
+			this.style[kebabToCamelCase(name)] = value;
+			return this;
+		}
+	}
+});
+
+//JavaScript does not have a "unique" or "distinct" function, so I'm adding one.
+Object.defineProperty(Array.prototype, 'unique', {
+	value: function() { return [...new Set(this)]; }
+});
+
+//JavaScript does not have an "intersect" function, so I'm adding one.
+
+//This function returns an array containing every unique element that is
+//in every given array (NOT INCLUDING the array it is called on).
+
+//PLEASE NOTE: Array.intersect() operates ONLY on the passed parameters,
+//where Array.intersection() operates on the passed parameters AND the
+//array it is called on.
+Object.defineProperty(Array.prototype, 'intersect', {
+	value: function(...arrays) {
+		let intersection = [];
+		let firstArray = [];
+		let firstArrayIndex = null;
+		for(const index in arrays) {
+			arrays[index] = arrays[index].unique();
+			if(arrays[index].length < firstArray.length) {
+				firstArray = arrays[index];
+				firstArrayIndex = index;
+			}
+		}
+		arrays.splice(firstArrayIndex, 1);
+		for(const element of firstArray) {
+			let elementIntersects = true;
+			for(const otherArray of arrays) {
+				if(!otherArray.includes(element)) {
+					elementIntersects = false;
+					break;
+				}
+			}
+			if(elementIntersects) {
+				intersection.push(element)
+			}
+		}
+		return intersection;
+	}
+});
+//This function returns an array containing every unique element that is
+//in every given array (INCLUDING the array it is called on).
+
+//PLEASE NOTE: Array.intersect() operates ONLY on the passed parameters,
+//where Array.intersection() operates on the passed parameters AND the
+//array it is called on.
+Object.defineProperty(Array.prototype, 'intersection', {
+	value: function(...arrays) {
+		arrays.push(this);
+		return [].intersect(...arrays);
+	}
+});
+
+//JavaScript does not have an Array.difference() function, so I made one.
+//It is cumulative - if you pass multiple arrays in, it will give you
+//every value that is only in ONE of the arrays. In this way it functions
+//as the inverse of the intersect/ion functions.
+Object.defineProperty(Array.prototype, 'difference', {
+	value: function(...arrays) {
+		const allValues = this.concat(...arrays).unique();
+		arrays.push(this);
+		//tracks the number of arrays that include the value
+		const numberOfIncludesByValueIndex = allValues.map(v=>0);//makes an array of 0's
+		//go through every unique value
+		for(const valueIndex in allValues) {
+			const value = allValues[valueIndex];
+			//go through every array
+			for(const array of arrays) {
+				//if the array has the value
+				if(array.includes(value)) {
+					//increment the count for this valueIndex
+					numberOfIncludesByValueIndex[valueIndex] += 1;
+					//if the count of this valueIndex is more than one
+					if(numberOfIncludesByValueIndex[valueIndex] > 1) {
+						//exit early for efficiency's sake
+						break;
+					}
+				}
+			}
+		}
+		let difference = [];
+		for(const valueIndex in numberOfIncludesByValueIndex) {
+			if(numberOfIncludesByValueIndex[valueIndex] == 1) {
+				difference.push(allValues[valueIndex]);
+			}
+		}
+		return difference;
+	}
+});
+
+//simplifies using 'addEventListener'
+Object.defineProperty(NodeList.prototype, 'addEventListener', {
+	value: function(...params) {
+		for(var i = 0; i < this.length; i++) {
+			this[i].addEventListener(...params);
+		}
+	}
+});
+
+//psudonym for contains function
+Object.defineProperty(DOMTokenList.prototype, 'has', {
+	value: function(...params) {
+		return this.contains(...params);
+	}
+});
+
+//The 3 following definitions make it easier to work with small batches
+//of FormData by enabling function chaining.
+Object.defineProperty(FormData.prototype, 'appending', {
+	value: function(...params) {
+		this.append(...params)
+		return this;
+	}
+});
+Object.defineProperty(FormData.prototype, 'setting', {
+	value: function(...params) {
+		this.set(...params)
+		return this;
+	}
+});
+Object.defineProperty(FormData.prototype, 'deleting', {
+	value: function(...params) {
+		this.delete(...params)
+		return this;
+	}
+});
+
+//allows you to append an object full of data to the data already in the form
+Object.defineProperty(FormData.prototype, 'appendData', {
+	value: function(data) {
+		let iterableEntries = null;
+		if(
+			typeof(data) == 'object'
+			&& data.constructor.name === 'Object'
+		) {
+			iterableEntries = Object.entries(data);
+		}
+		else if(
+			typeof(data) == 'object'
+			&& data.constructor.name === 'FormData'
+		) {//in case they went through the legwork of using a formdata object
+			iterableEntries = data.entries();
+		}
+		if(iterableEntries) {
+			for(let entry of iterableEntries) {
+				this.append(entry[0], entry[1]);
+			}
+		}
+		return this;
+	}
+});
+//pseudonym for x.querySelector
+function qs(...params) {
+	if(
+		typeof(params[0]) === 'object'
+		&& typeof(params[0].querySelector) !== 'undefined'
+		&& typeof(params[0].querySelector) === 'function'
+	) {
+		return params.shift().querySelector(...params);
+	}
+	return document.querySelector(...params);
+}
+Object.defineProperty(Document.prototype, 'qs', {
+	value: function(...params) { return this.querySelector(...params); }
+});
+Object.defineProperty(Element.prototype, 'qs', {
+	value: function(...params) { return this.querySelector(...params); }
+});
+Object.defineProperty(DocumentFragment.prototype, 'qs', {
+	value: function(...params) { return this.querySelector(...params); }
+});
+Object.defineProperty(ShadowRoot.prototype, 'qs', {
+	value: function(...params) { return this.querySelector(...params); }
+});
+//pseudonym for x.querySelectorAll
+function qsa(...params) {
+	if(
+		typeof(params[0]) === 'object'
+		&& typeof(params[0].querySelectorAll) !== 'undefined'
+		&& typeof(params[0].querySelectorAll) === 'function'
+	) {
+		return params.shift().querySelectorAll(...params);
+	}
+	return document.querySelectorAll(...params);
+}
+Object.defineProperty(Document.prototype, 'qsa', {
+	value: function(...params) { return this.querySelectorAll(...params); }
+});
+Object.defineProperty(Element.prototype, 'qsa', {
+	value: function(...params) { return this.querySelectorAll(...params); }
+});
+Object.defineProperty(DocumentFragment.prototype, 'qsa', {
+	value: function(...params) { return this.querySelectorAll(...params); }
+});
+Object.defineProperty(ShadowRoot.prototype, 'qsa', {
+	value: function(...params) { return this.querySelectorAll(...params); }
+});
+
+//pseudonym for window.getComputedStyle(...).getPropertyValue(...)
+function getCss(node, cssName) {
+	return window.getComputedStyle(node).getPropertyValue(cssName);
+}
+Object.defineProperty(Window.prototype, 'getCss', {
+	value: function(node, cssName) { return getCss(node,cssName); }
+});
+Object.defineProperty(Element.prototype, 'getCss', {
+	value: function(cssName) { return getCss(this,cssName); }
+});
+
+//pseudonym for document.addEventListener('DOMContentLoaded', ...) (stands for 'document ready')
+function dr(...params) {
+	return document.addEventListener('DOMContentLoaded', ...params);
+}
+
+//pseudonym for fetch(...).then(...), initOptions should include 'parse' if you don't want to use 
+//the default response.text().
+function ft(resource, initOptions) {
+	initOptions = initOptions ?? {};
+	if(
+		typeof(resource) == 'object'
+		&& resource.constructor.name === 'SubmitEvent'
+	) {
+		let formData = new FormData(resource.target);
+		if(initOptions) {
+			if(typeof(initOptions.body) == 'object') {
+				formData.appendData(initOptions.body);
+			}
+		}
+		else {
+			initOptions = {};
+		}
+		initOptions.body = formData;
+		let resourceFound = resource.target.action ?? '';
+		if(!resourceFound.trim()) {
+			resourceFound = resource.target.url ?? '';
+		}
+		resource = resourceFound;
+		initOptions.method = initOptions.method ?? 'POST';
+	}
+	if(typeof(initOptions.body) == 'object') {
+		let formData = new FormData();
+		formData.appendData(initOptions.body);
+		initOptions.body = formData;
+		initOptions.method = initOptions.method ?? 'POST';
+	}
+	return fetch(resource, initOptions)
+		.then((response)=>{
+			if(!response.ok) {
+				throw response.status+' Error: '+response.statusText;
+			}
+			return response[initOptions.parse ?? 'text']();
+		})
+	;
+}
+//pseudonym for x.addEventListener(...), does not dynamically listen for new elements that match the selector.
+function _ael(nodeOrNodelist, type, listener, optionsOrUseCapture, listenerName) {
+	// console.log('listener.name',listener.name ?? '');
+	let nestedListener = (event)=>{
+		if(listener !== null) {
+			let _aelTrigger = event.target;
+			if(nodeOrNodelist.constructor.name == 'NodeList' || nodeOrNodelist.constructor.name == 'Array') {
+				nodeOrNodelist.foreach((node)=>{
+					if(node.contains(_aelTrigger)) {
+						while(_aelTrigger != node) {
+							_aelTrigger = _aelTrigger.parentNode;
+						}
+					}
+				});
+			}
+			else {
+				while(_aelTrigger != nodeOrNodelist) {
+					_aelTrigger = _aelTrigger.parentNode;
+				}
+			}
+			//typeof is not good enough to detect a function, 
+			//see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof
+			if(
+				typeof listener === 'object' 
+				&& listener.hasOwnProperty('handleEvent') 
+				&& typeof listener.handleEvent == 'function'
+			) {
+				listener.handleEvent(event, _aelTrigger);
+			}
+			else if(typeof listener == 'function') {
+				listener(event, _aelTrigger);
+			}
+		}
+	};
+	Object.defineProperty(nestedListener, 'name', {value: listenerName});
+	return nodeOrNodelist.addEventListener(type, nestedListener, optionsOrUseCapture);
+}
+//Mimic of jQuery's document-bound event listeners.
+//May cause problems in edge cases, but I haven't found them yet.
+//Does NOT bind an event listener to the document.
+//Instead, uses a mutationObserver on the document.
+//The ael function will immediately bind to the given selector,
+//and add an event listener to any newly added nodes that match
+//the selector.
+//If the selector is not a string, it will assume a Node or
+//NodeList, and attempt to add the event listener to it, and will
+//ignore adding the event listener to newly added nodes.
+const _aelRecords = [];
+function _addEventListenersToNewNodes(mutationRecords) {
+	// console.log('observing')
+	for(let index = 0, len = mutationRecords.length; index < len; index += 1) {
+		//check for added nodes
+		if(mutationRecords[index].addedNodes) {
+			for(const node of mutationRecords[index].addedNodes) {
+				switch(node.nodeType) {
+					case 1:
+					case 9:
+					case 11:
+						// console.log('node type passed');
+						_aelRecords.foreach((record)=>{
+							if(node.matches(record.selector)) {
+								// console.log('match found: ', node);
+								if(node.getAttribute('qs-removed')) {
+									// console.log('Is a moved element, aborting ael');
+									node.removeAttribute('qs-removed');
+								}
+								else {
+									_ael(
+										node, 
+										record.type, 
+										record.listener, 
+										record.optionsCapture, 
+										record.listener.name ?? 'anonymous'
+									);
+								}
+							}
+							else {
+								let matchingChildren = qsa(node, record.selector);
+								for(let childNode of matchingChildren) {
+									// console.log('match found: ', childNode);
+									if(childNode.getAttribute('qs-removed')) {
+										// console.log('Is a moved element, aborting ael');
+										childNode.removeAttribute('qs-removed');
+									}
+									else {
+										_ael(
+											childNode, 
+											record.type, 
+											record.listener, 
+											record.optionsCapture, 
+											record.listener.name ?? 'anonymous'
+										);
+									}
+								}
+							}
+						});//end _aelRecords foreach
+					break;
+				}
+			}//end for addedNodes
+		}//end addedNodes
+		//check for removed nodes
+		if(mutationRecords[index].removedNodes) {
+			for(const node of mutationRecords[index].removedNodes) {
+				switch(node.nodeType) {
+					case 1:
+					case 9:
+					case 11:
+						// console.log('node type passed');
+						_aelRecords.foreach((record)=>{
+							if(node.matches(record.selector)) {
+								// console.log('remove match found: ', node);
+								node.setAttribute('qs-removed', true);
+							}
+							else {
+								let matchingChildren = qsa(node, record.selector);
+								for(let childNode of matchingChildren) {
+									// console.log('remove match found: ', childNode);
+									childNode.setAttribute('qs-removed', true);
+								}
+							}
+						});
+					break;
+				}
+			}//end for
+		}//end removedNodes
+	}//end for mutationRecords
+}//end _addEventListenersToNewNodes
+
+const _aelObserver = new MutationObserver(_addEventListenersToNewNodes);
+_aelObserver.observe(document,{childList: true,subtree: true});
+
+//ael === add event listener. Makes use of the _ael function and the _aelObserver to add an event once, and
+//persistently keep an event added to a selector, depending on input.
+function ael(selectorOrEventListenable, type, listener, optionsCapture = null){
+	if((typeof selectorOrEventListenable) === (typeof '')) {//if selectorOrEventListenable is a selector string
+		//Add event listener now,
+		//AND add a record of the ael data to be used by the _aelObserver for new nodes
+		if(Array.isArray(type)) {
+			for(const typeItem of type) {
+				_ael(
+					qsa(selectorOrEventListenable), 
+					typeItem, 
+					listener, 
+					optionsCapture, 
+					listener.name ?? 'anonymous'
+				);
+				_aelRecords.push(
+					{
+						selector:selectorOrEventListenable, 
+						type:typeItem, 
+						listener:listener, 
+						optionsCapture:optionsCapture
+					}
+				);
+			}
+		}
+		else {
+			_ael(qsa(selectorOrEventListenable), type, listener, optionsCapture, listener.name ?? 'anonymous');
+			_aelRecords.push({selector:selectorOrEventListenable, type:type, listener:listener, optionsCapture:optionsCapture});
+		}
+	}
+	else {//assume it is an event listenable, and add event listener now without worrying about future elements
+		//Add event listener now.
+		if(Array.isArray(type)) {
+			for(const typeItem of type) {
+				_ael(selectorOrEventListenable, typeItem, listener, optionsCapture, listener.name ?? 'anonymous');
+			}
+		}
+		else {
+			_ael(selectorOrEventListenable, type, listener, optionsCapture, listener.name ?? 'anonymous');
+		}
+	}//end if/else selectorOrEventListenable == string
+}//end ael
+Object.defineProperty(EventTarget.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(EventSource.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(XMLHttpRequestEventTarget.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(AudioWorkletNode.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(MessagePort.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(WebSocket.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(Worker.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(XMLHttpRequest.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(AbortSignal.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(ReadableStream.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(WritableStream.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+Object.defineProperty(RTCDataChannel.prototype, 'ael', {
+	value: function(...parameters) { return ael(this, ...parameters); }
+});
+
+//pseudonym for x.dispatchEvent(new Event(...))
+function de(...params){
+	return params.shift().dispatchEvent(new Event(...params));
+}
+
+function dme(...params){
+	return params.shift().dispatchEvent(new MouseEvent(...params));
+}
+
+function dce(...params){
+	return params.shift().dispatchEvent(new CustomEvent(...params));
+}
+
+function hparse(htmlString){
+	//https://stackoverflow.com/a/55046067/6047611
+	let parse = Range.prototype.createContextualFragment.bind(document.createRange());
+	return parse(htmlString);
+}
+
+//put element 1 after element 2
+function putAfter(element1, element2){
+	element2.parentNode.insertBefore(element1, element2.nextSibling);
+}
+
+//put element 1 before element 2
+function putBefore(element1, element2){
+	element2.parentNode.insertBefore(element1, element2);
+}
+
 function getShadowDimensions(element) {
 	const transitionPropertyOriginal = element.style.transitionProperty;
 	const transitionDurationOriginal = element.style.transitionDuration;
@@ -391,494 +912,6 @@ function slideShow(element, duration = 300, direction = 'down') {
 	});
 }
 
-//jquery-like helpers for css manipulation
-function kebabToCamelCase(kebabCaseString) {
-	return kebabCaseString.replace(/-([a-z])/g, function(match, letter) {
-		return letter.toUpperCase();
-	});
-}
-Object.defineProperty(Element.prototype, 'styling', {
-	value: function(name, value) {
-		if(typeof name === 'object') {
-			const cssSetObject = name;
-			for(const propertyName in cssSetObject) {
-				this.style[kebabToCamelCase(propertyName)] = cssSetObject[propertyName];
-			}
-			return this;
-		}
-		else if(undefined === value) {
-			return this.style[kebabToCamelCase(name)];
-		}
-		else {
-			this.style[kebabToCamelCase(name)] = value;
-			return this;
-		}
-	}
-});
-
-//JavaScript does not have a "unique" or "distinct" function, so I'm adding one.
-Object.defineProperty(Array.prototype, 'unique', {
-	value: function() { return [...new Set(this)]; }
-});
-
-//JavaScript does not have an "intersect" function, so I'm adding one.
-
-//This function returns an array containing every unique element that is
-//in every given array (NOT INCLUDING the array it is called on).
-
-//PLEASE NOTE: Array.intersect() operates ONLY on the passed parameters,
-//where Array.intersection() operates on the passed parameters AND the
-//array it is called on.
-Object.defineProperty(Array.prototype, 'intersect', {
-	value: function(...arrays) {
-		let intersection = [];
-		let firstArray = [];
-		let firstArrayIndex = null;
-		for(const index in arrays) {
-			arrays[index] = arrays[index].unique();
-			if(arrays[index].length < firstArray.length) {
-				firstArray = arrays[index];
-				firstArrayIndex = index;
-			}
-		}
-		arrays.splice(firstArrayIndex, 1);
-		for(const element of firstArray) {
-			let elementIntersects = true;
-			for(const otherArray of arrays) {
-				if(!otherArray.includes(element)) {
-					elementIntersects = false;
-					break;
-				}
-			}
-			if(elementIntersects) {
-				intersection.push(element)
-			}
-		}
-		return intersection;
-	}
-});
-//This function returns an array containing every unique element that is
-//in every given array (INCLUDING the array it is called on).
-
-//PLEASE NOTE: Array.intersect() operates ONLY on the passed parameters,
-//where Array.intersection() operates on the passed parameters AND the
-//array it is called on.
-Object.defineProperty(Array.prototype, 'intersection', {
-	value: function(...arrays) {
-		arrays.push(this);
-		return [].intersect(...arrays);
-	}
-});
-
-//JavaScript does not have an Array.difference() function, so I made one.
-//It is cumulative - if you pass multiple arrays in, it will give you
-//every value that is only in ONE of the arrays. In this way it functions
-//as the inverse of the intersect/ion functions.
-Object.defineProperty(Array.prototype, 'difference', {
-	value: function(...arrays) {
-		const allValues = this.concat(...arrays).unique();
-		arrays.push(this);
-		//tracks the number of arrays that include the value
-		const numberOfIncludesByValueIndex = allValues.map(v=>0);//makes an array of 0's
-		//go through every unique value
-		for(const valueIndex in allValues) {
-			const value = allValues[valueIndex];
-			//go through every array
-			for(const array of arrays) {
-				//if the array has the value
-				if(array.includes(value)) {
-					//increment the count for this valueIndex
-					numberOfIncludesByValueIndex[valueIndex] += 1;
-					//if the count of this valueIndex is more than one
-					if(numberOfIncludesByValueIndex[valueIndex] > 1) {
-						//exit early for efficiency's sake
-						break;
-					}
-				}
-			}
-		}
-		let difference = [];
-		for(const valueIndex in numberOfIncludesByValueIndex) {
-			if(numberOfIncludesByValueIndex[valueIndex] == 1) {
-				difference.push(allValues[valueIndex]);
-			}
-		}
-		return difference;
-	}
-});
-
-//simplifies using 'addEventListener'
-Object.defineProperty(NodeList.prototype, 'addEventListener', {
-	value: function(...params) {
-		for(var i = 0; i < this.length; i++) {
-			this[i].addEventListener(...params);
-		}
-	}
-});
-
-//psudonym for contains function
-Object.defineProperty(DOMTokenList.prototype, 'has', {
-	value: function(...params) {
-		return this.contains(...params);
-	}
-});
-
-//The 3 following definitions make it easier to work with small batches
-//of FormData by enabling function chaining.
-Object.defineProperty(FormData.prototype, 'appending', {
-	value: function(...params) {
-		this.append(...params)
-		return this;
-	}
-});
-Object.defineProperty(FormData.prototype, 'setting', {
-	value: function(...params) {
-		this.set(...params)
-		return this;
-	}
-});
-Object.defineProperty(FormData.prototype, 'deleting', {
-	value: function(...params) {
-		this.delete(...params)
-		return this;
-	}
-});
-
-//allows you to append an object full of data to the data already in the form
-Object.defineProperty(FormData.prototype, 'appendData', {
-	value: function(data) {
-		let iterableEntries = null;
-		if(
-			typeof(data) == 'object'
-			&& data.constructor.name === 'Object'
-		) {
-			iterableEntries = Object.entries(data);
-		}
-		else if(
-			typeof(data) == 'object'
-			&& data.constructor.name === 'FormData'
-		) {//in case they went through the legwork of using a formdata object
-			iterableEntries = data.entries();
-		}
-		if(iterableEntries) {
-			for(let entry of iterableEntries) {
-				this.append(entry[0], entry[1]);
-			}
-		}
-		return this;
-	}
-});
-//pseudonym for x.querySelector
-function qs(...params) {
-	if(
-		typeof(params[0]) === 'object'
-		&& typeof(params[0].querySelector) !== 'undefined'
-		&& typeof(params[0].querySelector) === 'function'
-	) {
-		return params.shift().querySelector(...params);
-	}
-	return document.querySelector(...params);
-}
-Object.defineProperty(Document.prototype, 'qs', {
-	value: function(...params) { return this.querySelector(...params); }
-});
-Object.defineProperty(Element.prototype, 'qs', {
-	value: function(...params) { return this.querySelector(...params); }
-});
-Object.defineProperty(DocumentFragment.prototype, 'qs', {
-	value: function(...params) { return this.querySelector(...params); }
-});
-Object.defineProperty(ShadowRoot.prototype, 'qs', {
-	value: function(...params) { return this.querySelector(...params); }
-});
-//pseudonym for x.querySelectorAll
-function qsa(...params) {
-	if(
-		typeof(params[0]) === 'object'
-		&& typeof(params[0].querySelectorAll) !== 'undefined'
-		&& typeof(params[0].querySelectorAll) === 'function'
-	) {
-		return params.shift().querySelectorAll(...params);
-	}
-	return document.querySelectorAll(...params);
-}
-Object.defineProperty(Document.prototype, 'qsa', {
-	value: function(...params) { return this.querySelectorAll(...params); }
-});
-Object.defineProperty(Element.prototype, 'qsa', {
-	value: function(...params) { return this.querySelectorAll(...params); }
-});
-Object.defineProperty(DocumentFragment.prototype, 'qsa', {
-	value: function(...params) { return this.querySelectorAll(...params); }
-});
-Object.defineProperty(ShadowRoot.prototype, 'qsa', {
-	value: function(...params) { return this.querySelectorAll(...params); }
-});
-
-//pseudonym for window.getComputedStyle(...).getPropertyValue(...)
-function getCss(node, cssName) {
-	return window.getComputedStyle(node).getPropertyValue(cssName);
-}
-Object.defineProperty(Window.prototype, 'getCss', {
-	value: function(node, cssName) { return getCss(node,cssName); }
-});
-Object.defineProperty(Element.prototype, 'getCss', {
-	value: function(cssName) { return getCss(this,cssName); }
-});
-
-//pseudonym for document.addEventListener('DOMContentLoaded', ...) (stands for 'document ready')
-function dr(...params) {
-	return document.addEventListener('DOMContentLoaded', ...params);
-}
-
-//pseudonym for fetch(...).then(...), initOptions should include 'parse' if you don't want to use the default response.text().
-function ft(resource, initOptions) {
-	initOptions = initOptions ?? {};
-	if(
-		typeof(resource) == 'object'
-		&& resource.constructor.name === 'SubmitEvent'
-	) {
-		let formData = new FormData(resource.target);
-		if(initOptions) {
-			if(typeof(initOptions.body) == 'object') {
-				formData.appendData(initOptions.body);
-			}
-		}
-		else {
-			initOptions = {};
-		}
-		initOptions.body = formData;
-		let resourceFound = resource.target.action ?? '';
-		if(!resourceFound.trim()) {
-			resourceFound = resource.target.url ?? '';
-		}
-		resource = resourceFound;
-		initOptions.method = initOptions.method ?? 'POST';
-	}
-	if(typeof(initOptions.body) == 'object') {
-		let formData = new FormData();
-		formData.appendData(initOptions.body);
-		initOptions.body = formData;
-		initOptions.method = initOptions.method ?? 'POST';
-	}
-	return fetch(resource, initOptions)
-		.then((response)=>{
-			if(!response.ok) {
-				throw response.status+' Error: '+response.statusText;
-			}
-			return response[initOptions.parse ?? 'text']();
-		})
-	;
-}
-//pseudonym for x.addEventListener(...), does not dynamically listen for new elements that match the selector.
-function _ael(nodeOrNodelist, type, listener, optionsOrUseCapture, listenerName) {
-	// console.log('listener.name',listener.name ?? '');
-	let nestedListener = (event)=>{
-		if(listener !== null) {
-			let _aelTrigger = event.target;
-			if(nodeOrNodelist.constructor.name == 'NodeList' || nodeOrNodelist.constructor.name == 'Array') {
-				nodeOrNodelist.foreach((node)=>{
-					if(node.contains(_aelTrigger)) {
-						while(_aelTrigger != node) {
-							_aelTrigger = _aelTrigger.parentNode;
-						}
-					}
-				});
-			}
-			else {
-				while(_aelTrigger != nodeOrNodelist) {
-					_aelTrigger = _aelTrigger.parentNode;
-				}
-			}
-			//typeof is not good enough to detect a function, see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/typeof
-			if(typeof listener === 'object' && listener.hasOwnProperty('handleEvent') && typeof listener.handleEvent == 'function') {
-				listener.handleEvent(event, _aelTrigger);
-			}
-			else if(typeof listener == 'function') {
-				listener(event, _aelTrigger);
-			}
-		}
-	};
-	Object.defineProperty(nestedListener, 'name', {value: listenerName});
-	return nodeOrNodelist.addEventListener(type, nestedListener, optionsOrUseCapture);
-}
-//Mimic of jQuery's document-bound event listeners.
-//May cause problems in edge cases, but I haven't found them yet.
-//Does NOT bind an event listener to the document.
-//Instead, uses a mutationObserver on the document.
-//The ael function will immediately bind to the given selector,
-//and add an event listener to any newly added nodes that match
-//the selector.
-//If the selector is not a string, it will assume a Node or
-//NodeList, and attempt to add the event listener to it, and will
-//ignore adding the event listener to newly added nodes.
-const _aelRecords = [];
-function _addEventListenersToNewNodes(mutationRecords) {
-	// console.log('observing')
-	for(let index = 0, len = mutationRecords.length; index < len; index += 1) {
-		//check for added nodes
-		if(mutationRecords[index].addedNodes) {
-			for(const node of mutationRecords[index].addedNodes) {
-				switch(node.nodeType) {
-					case 1:
-					case 9:
-					case 11:
-						// console.log('node type passed');
-						_aelRecords.foreach((record)=>{
-							if(node.matches(record.selector)) {
-								// console.log('match found: ', node);
-								if(node.getAttribute('qs-removed')) {
-									// console.log('Is a moved element, aborting ael');
-									node.removeAttribute('qs-removed');
-								}
-								else {
-									_ael(node, record.type, record.listener, record.optionsCapture, record.listener.name ?? 'anonymous');
-								}
-							}
-							else {
-								let matchingChildren = qsa(node, record.selector);
-								for(let childNode of matchingChildren) {
-									// console.log('match found: ', childNode);
-									if(childNode.getAttribute('qs-removed')) {
-										// console.log('Is a moved element, aborting ael');
-										childNode.removeAttribute('qs-removed');
-									}
-									else {
-										_ael(childNode, record.type, record.listener, record.optionsCapture, record.listener.name ?? 'anonymous');
-									}
-								}
-							}
-						});//end _aelRecords foreach
-					break;
-				}
-			}//end for addedNodes
-		}//end addedNodes
-		//check for removed nodes
-		if(mutationRecords[index].removedNodes) {
-			for(const node of mutationRecords[index].removedNodes) {
-				switch(node.nodeType) {
-					case 1:
-					case 9:
-					case 11:
-						// console.log('node type passed');
-						_aelRecords.foreach((record)=>{
-							if(node.matches(record.selector)) {
-								// console.log('remove match found: ', node);
-								node.setAttribute('qs-removed', true);
-							}
-							else {
-								let matchingChildren = qsa(node, record.selector);
-								for(let childNode of matchingChildren) {
-									// console.log('remove match found: ', childNode);
-									childNode.setAttribute('qs-removed', true);
-								}
-							}
-						});
-					break;
-				}
-			}//end for
-		}//end removedNodes
-	}//end for mutationRecords
-}//end _addEventListenersToNewNodes
-
-const _aelObserver = new MutationObserver(_addEventListenersToNewNodes);
-_aelObserver.observe(document,{childList: true,subtree: true});
-
-//ael === add event listener. Makes use of the _ael function and the _aelObserver to add an event once, and
-//persistently keep an event added to a selector, depending on input.
-function ael(selectorOrEventListenable, type, listener, optionsCapture = null){
-	if((typeof selectorOrEventListenable) === (typeof '')) {//if selectorOrEventListenable is a selector string
-		//Add event listener now,
-		//AND add a record of the ael data to be used by the _aelObserver for new nodes
-		if(Array.isArray(type)) {
-			for(const typeItem of type) {
-				_ael(qsa(selectorOrEventListenable), typeItem, listener, optionsCapture, listener.name ?? 'anonymous');
-				_aelRecords.push({selector:selectorOrEventListenable, type:typeItem, listener:listener, optionsCapture:optionsCapture});
-			}
-		}
-		else {
-			_ael(qsa(selectorOrEventListenable), type, listener, optionsCapture, listener.name ?? 'anonymous');
-			_aelRecords.push({selector:selectorOrEventListenable, type:type, listener:listener, optionsCapture:optionsCapture});
-		}
-	}
-	else {//assume it is an event listenable, and add event listener now without worrying about future elements
-		//Add event listener now.
-		if(Array.isArray(type)) {
-			for(const typeItem of type) {
-				_ael(selectorOrEventListenable, typeItem, listener, optionsCapture, listener.name ?? 'anonymous');
-			}
-		}
-		else {
-			_ael(selectorOrEventListenable, type, listener, optionsCapture, listener.name ?? 'anonymous');
-		}
-	}//end if/else selectorOrEventListenable == string
-}//end ael
-Object.defineProperty(EventTarget.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(EventSource.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(XMLHttpRequestEventTarget.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(AudioWorkletNode.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(MessagePort.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(WebSocket.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(Worker.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(XMLHttpRequest.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(AbortSignal.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(ReadableStream.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(WritableStream.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-Object.defineProperty(RTCDataChannel.prototype, 'ael', {
-	value: function(...parameters) { return ael(this, ...parameters); }
-});
-
-//pseudonym for x.dispatchEvent(new Event(...))
-function de(...params){
-	return params.shift().dispatchEvent(new Event(...params));
-}
-
-function dme(...params){
-	return params.shift().dispatchEvent(new MouseEvent(...params));
-}
-
-function dce(...params){
-	return params.shift().dispatchEvent(new CustomEvent(...params));
-}
-
-function hparse(htmlString){
-	//https://stackoverflow.com/a/55046067/6047611
-	let parse = Range.prototype.createContextualFragment.bind(document.createRange());
-	return parse(htmlString);
-}
-
-//put element 1 after element 2
-function putAfter(element1, element2){
-	element2.parentNode.insertBefore(element1, element2.nextSibling);
-}
-
-//put element 1 before element 2
-function putBefore(element1, element2){
-	element2.parentNode.insertBefore(element1, element2);
-}
-
 var cssNamesByJsNames = {'Top':'-top', 'Bottom':'-bottom', 'Right':'-right', 'Left':'-left'};
 var jsNames = Object.keys(cssNamesByJsNames);
 
@@ -923,7 +956,13 @@ function _addCssTransitionIfNeeded(node, time = null, curve = null, delay = null
 			|| before.includes('all')
 		)
 	) {
-		after = 'all '+ ((time !== null && time !== '') ? time : '0.15s') + ' ' + ((curve !== null && curve !== '') ? curve : 'ease-in-out') + ' ' + ((delay !== null && delay !== '') ? delay : '0s');
+		after = 'all '
+			+ ((time !== null && time !== '') ? time : '0.15s') 
+			+ ' ' 
+			+ ((curve !== null && curve !== '') ? curve : 'ease-in-out') 
+			+ ' ' 
+			+ ((delay !== null && delay !== '') ? delay : '0s')
+		;
 	}
 	node.style.transition = after;
 	return {before: before, after: after};
@@ -1142,7 +1181,16 @@ function showNode(node, options = {}) {
 	else {
 		return new Promise(resolvePromise=>{
 			let rect = node.getBoundingClientRect();
-			if((rect.height <= 0 || options.fade) && (node.getAttribute('is-animating') !== 'true' || options.forceAnimate)) {
+			if(
+				(
+					rect.height <= 0 
+				 	|| options.fade
+				) 
+				&& (
+					node.getAttribute('is-animating') !== 'true' 
+					|| options.forceAnimate
+				)
+			) {
 				node.setAttribute('is-animating', 'true');
 				let resolve = (node)=>{
 					node.setAttribute('is-animating', 'false');
@@ -1363,14 +1411,23 @@ function getSelectorHierarchy(node, asString = true) {
 }
 
 /**
- * Returns a Promise that recursively polls(periodically executes) the predicateClosure, resolves when the predicateClosure returns a truthy value, and rejects if the poll expiration has been exceeded(!). The result of the last poll will be passed to both the resolve and the reject closures.
+ * Returns a Promise that recursively polls(periodically executes) the predicateClosure, resolves 
+ * when the predicateClosure returns a truthy value, and rejects if the poll expiration has been 
+ * exceeded(!). The result of the last poll will be passed to both the resolve and the reject closures.
  *
  * @summary TLDR; "when(()=>{return someCondition == 'truthy'}).then(()=>{executeSomeCode = 'foobar';});".
  *
- * @param   Closure predicateClosure       This is a closure (anonymous function) the return value of which must be truthy for the Promise to resolve. It should return the result of some conditional expression. It will be passed the amount of time that has expired, in milliseconds, since polling began.
- * @param   integer intervalMilliseconds   This integer represents how long to wait between checking the predicate closure for truthiness.
- * @param   integer expirationMilliseconds This integer represents the maximum time to wait for the predicate function to return true before giving up. Default is 0, which means the poll cycle will never expire.
- * @param   string  tag                    This string represents a tag to present in the console when warning the user that the poll cycle has exited early.
+ * @param   Closure predicateClosure       This is a closure (anonymous function) the return value of which must be 
+ *                                         truthy for the Promise to resolve. It should return the result of some 
+ *                                         conditional expression. It will be passed the amount of time that has expired, 
+ *                                         in milliseconds, since polling began.
+ * @param   integer intervalMilliseconds   This integer represents how long to wait between checking the predicate 
+ *                                         closure for truthiness.
+ * @param   integer expirationMilliseconds This integer represents the maximum time to wait for the predicate function to 
+ *                                         return true before giving up. Default is 0, which means the poll cycle will 
+ *                                         never expire.
+ * @param   string  tag                    This string represents a tag to present in the console when warning the user 
+ *                                         that the poll cycle has exited early.
  *
  * @returns Promise Whether resolved or rejected, the then() closure will be passed the last polled result of predicateClosure().
  *
@@ -1400,7 +1457,12 @@ function when(predicateClosure, intervalMilliseconds = 500, expirationMillisecon
 	let lastPredicateResult = null;
 	const pollPredicateClosure = (resolvePromise, rejectPromise)=>{
 		if(expirationMilliseconds > 0 && totalMillisecondsPassed > expirationMilliseconds) {
-			console.warn((tag ? tag+': ' : '')+'Polling exceeded maximum of '+expirationMilliseconds+' milliseconds. Promise will now exit poll cycle and resolve as rejected.');
+			console.warn(
+				(tag ? tag+': ' : '')
+				+'Polling exceeded maximum of '
+				+expirationMilliseconds
+				+' milliseconds. Promise will now exit poll cycle and resolve as rejected.'
+			);
 			return rejectPromise(lastPredicateResult);
 		}
 		lastPredicateResult = predicateClosure(totalMillisecondsPassed);
