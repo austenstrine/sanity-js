@@ -526,8 +526,21 @@ function ael(selectorOrEventListenable, type, listener, optionsCapture = null){
 			}
 		}
 		else {
-			_ael(qsa(selectorOrEventListenable), type, listener, optionsCapture, listener.name ?? 'anonymous');
-			_aelRecords.push({selector:selectorOrEventListenable, type:type, listener:listener, optionsCapture:optionsCapture});
+			_ael(
+				qsa(selectorOrEventListenable), 
+				type, 
+				listener, 
+				optionsCapture, 
+				listener.name ?? 'anonymous'
+			);
+			_aelRecords.push(
+				{
+					selector:selectorOrEventListenable, 
+					type:type, 
+					listener:listener, 
+					optionsCapture:optionsCapture
+				}
+			);
 		}
 	}
 	else {//assume it is an event listenable, and add event listener now without worrying about future elements
